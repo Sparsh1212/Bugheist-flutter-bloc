@@ -1,10 +1,11 @@
-import 'package:bugheist/src/bloc/issue_list_bloc.dart';
 import 'package:bugheist/src/data/services/api_response.dart';
 import 'package:bugheist/src/model/issue_list.dart';
+import 'package:bugheist/src/provider/issue_notifier.dart';
 import 'package:bugheist/src/ui/components/error.dart';
 import 'package:bugheist/src/ui/components/issue_intro.dart';
 import 'package:bugheist/src/ui/components/loading.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class ListIssues extends StatefulWidget {
   @override
@@ -12,25 +13,23 @@ class ListIssues extends StatefulWidget {
 }
 
 class _ListIssuesState extends State<ListIssues> {
-  IssueListBloc _bloc;
   ScrollController _controller;
 
   @override
   void initState() {
     super.initState();
-    _bloc = IssueListBloc();
+    Provider.of<IssueNotifier>(context, listen: false).fetchIssueList(false);
     _controller = ScrollController()..addListener(_scrollListener);
   }
 
   void _scrollListener() {
     if (_controller.position.pixels == _controller.position.maxScrollExtent) {
-      _bloc.fetchIssueList(true);
+      Provider.of<IssueNotifier>(context, listen: false).fetchIssueList(true);
     }
   }
 
   @override
   void dispose() {
-    _bloc.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -38,36 +37,33 @@ class _ListIssuesState extends State<ListIssues> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Recent Issues')),
-      body: RefreshIndicator(
-        onRefresh: () => _bloc.fetchIssueList(false),
-        child: StreamBuilder<ApiResponse<IssueList>>(
-          stream: _bloc.issueListStream,
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              switch (snapshot.data.status) {
-                case Status.LOADING:
-                  return Loading(loadingMessage: snapshot.data.message);
-                case Status.COMPLETED:
-                  return buildIssueList(snapshot);
-                case Status.ERROR:
-                  return Error(
-                    errorMessage: snapshot.data.message,
-                    onRetryPressed: () => _bloc.fetchIssueList(false),
-                  );
-                  break;
-              }
-            }
-
+        appBar: AppBar(title: Text('Recent Issues')),
+        body: Consumer<IssueNotifier>(builder: (context, issueNotifier, child) {
+          ApiResponse apiResponse = issueNotifier.getApiResponse();
+          if (apiResponse == null) {
             return Container();
-          },
-        ),
-      ),
-    );
+          } 
+          return RefreshIndicator(
+              onRefresh: () =>
+                  Provider.of<IssueNotifier>(context, listen: false)
+                      .fetchIssueList(false),
+              child: apiResponse.status == Status.LOADING
+                  ? Loading(
+                      loadingMessage: apiResponse.message,
+                    )
+                  : apiResponse.status == Status.ERROR
+                      ? Error(
+                          onRetryPressed: () async {
+                            Provider.of<IssueNotifier>(context, listen: false)
+                                .fetchIssueList(false);
+                          },
+                          errorMessage: apiResponse.message,
+                        )
+                      : buildIssueList(apiResponse.data));
+        }));
   }
 
-  ListView buildIssueList(AsyncSnapshot<ApiResponse<IssueList>> snapshot) {
-    IssueList issueList = snapshot.data.data;
+  ListView buildIssueList(IssueList issueList) {
     return ListView.builder(
         controller: _controller,
         itemCount: issueList.results.length + 1,

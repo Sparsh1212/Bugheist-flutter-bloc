@@ -1,8 +1,13 @@
+import 'package:bugheist/src/provider/issue_notifier.dart';
 import 'package:bugheist/src/ui/screens/list_issues.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(ChangeNotifierProvider(
+    create: (context) => IssueNotifier(),
+    child: MyApp(),
+  ));
 }
 
 class MyApp extends StatelessWidget {
@@ -18,4 +23,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
